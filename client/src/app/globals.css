@@ -1705,3 +1705,55 @@ th, td {
 .card, .btn, .input, .badge, .header, .option-item, .flashcard-front {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
 }
+
+/* ════════════════════════════════════════
+   MANAGE PAGE — mobile header + file upload
+   ════════════════════════════════════════ */
+
+/* Small phone: compact header so logo + nav fit on one line */
+@media (max-width: 480px) {
+  .header {
+    gap: 0.35rem;
+  }
+  .header-logo {
+    font-size: 0.95rem;
+    flex-shrink: 0;
+  }
+  .header-nav {
+    gap: 0.3rem;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+  .header-nav .btn {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    min-height: 32px;
+    gap: 0.25rem;
+  }
+  .header-nav .badge {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.4rem;
+    white-space: nowrap;
+  }
+}
+
+/* File upload row — stack on small screens */
+@media (max-width: 640px) {
+  .upload-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .upload-row input[type="file"].input {
+    flex: unset !important;
+    width: 100% !important;
+    font-size: 0.78rem;
+    min-height: 40px;
+    padding: 0.4rem 0.5rem;
+  }
+  .upload-row .btn {
+    flex: 1 1 0;
+  }
+}
+
+

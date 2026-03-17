@@ -357,7 +357,7 @@ Transformers`}
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="upload-row" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="file"
             accept=".csv,.txt,.json"

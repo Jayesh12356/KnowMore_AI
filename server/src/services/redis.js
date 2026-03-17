@@ -78,10 +78,10 @@ if (redisUrl && !redisUrl.includes('localhost') && !redisUrl.includes('127.0.0.1
 
     const redisClient = new Redis(redisUrl, {
       tls: useTls ? { rejectUnauthorized: false } : undefined,
-      maxRetriesPerRequest: null,
-      enableOfflineQueue: true,
+      maxRetriesPerRequest: 3,        // fail fast after 3 retries (wrapper catches it)
+      enableOfflineQueue: false,      // reject commands immediately when disconnected
       retryStrategy(times) {
-        // Never give up — Upstash drops idle connections; always reconnect
+        // Always reconnect in the background; Upstash drops idle connections
         return Math.min(times * 300, 5000);
       },
       reconnectOnError(err) {
@@ -91,28 +91,24 @@ if (redisUrl && !redisUrl.includes('localhost') && !redisUrl.includes('127.0.0.1
     redisClient.on('error', (err) => console.error('[REDIS] Error:', err.message));
     redisClient.on('connect', () => console.log('[REDIS] Connected'));
 
-    // Graceful fallback wrapper: if Redis is temporarily unavailable,
-    // catch errors and return safe defaults so routes degrade gracefully
-    // (cache miss → regenerate) instead of crashing with 500.
+    // Graceful fallback: wrap only the cache methods we use.
+    // If Redis is temporarily unavailable, catch errors and fall back to
+    // in-memory cache so routes degrade (cache miss → regenerate) instead of crashing.
     const fallback = new MemoryCache();
-    cache = new Proxy(redisClient, {
-      get(target, prop) {
-        if (typeof target[prop] === 'function') {
-          return async (...args) => {
-            try {
-              return await target[prop](...args);
-            } catch (err) {
-              console.warn(`[REDIS] Command "${prop}" failed, using fallback:`, err.message);
-              if (typeof fallback[prop] === 'function') {
-                return fallback[prop](...args);
-              }
-              return null;
-            }
-          };
+    const CACHE_METHODS = ['get', 'set', 'setex', 'del', 'ttl'];
+
+    cache = {};
+    for (const method of CACHE_METHODS) {
+      cache[method] = async (...args) => {
+        try {
+          return await redisClient[method](...args);
+        } catch (err) {
+          console.warn(`[REDIS] Command "${method}" failed, using fallback:`, err.message);
+          return fallback[method](...args);
         }
-        return target[prop];
-      },
-    });
+      };
+    }
+    cache.on = (...args) => redisClient.on(...args);
   } catch (e) {
     console.log('[CACHE] Redis not available, using in-memory cache');
     cache = new MemoryCache();
@@ -123,3 +119,4 @@ if (redisUrl && !redisUrl.includes('localhost') && !redisUrl.includes('127.0.0.1
 }
 
 module.exports = cache;
+

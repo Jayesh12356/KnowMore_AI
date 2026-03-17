@@ -41,13 +41,20 @@ app.use((err, _req, res, _next) => {
 const PORT = process.env.PORT || 4000;
 
 async function start() {
+  console.log("[STARTUP] Starting app...");
+
   try {
+    console.log("[STARTUP] Running migrations...");
     await runMigrations();
+    console.log("[STARTUP] Migrations complete");
   } catch (err) {
     console.error('[STARTUP] Migration failed — aborting server start:', err.message);
     process.exit(1);
   }
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[STARTUP] Server running on port ${PORT}`);
+  });
 }
 
 start();

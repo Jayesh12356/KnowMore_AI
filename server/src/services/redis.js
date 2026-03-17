@@ -74,9 +74,19 @@ const redisUrl = process.env.REDIS_URL || '';
 if (redisUrl && !redisUrl.includes('localhost') && !redisUrl.includes('127.0.0.1')) {
   try {
     const Redis = require('ioredis');
+    const useTls = redisUrl.startsWith('rediss://');
+
     cache = new Redis(redisUrl, {
-      maxRetriesPerRequest: 3,
-      retryStrategy(times) { return Math.min(times * 200, 2000); },
+      tls: useTls ? { rejectUnauthorized: false } : undefined,
+      maxRetriesPerRequest: null,       // never reject commands with "max retries" error
+      enableOfflineQueue: true,         // queue commands during transient disconnects
+      retryStrategy(times) {
+        if (times > 10) return null;    // stop reconnecting after 10 attempts
+        return Math.min(times * 500, 5000);
+      },
+      reconnectOnError(err) {
+        return err.message.includes('READONLY');
+      },
     });
     cache.on('error', (err) => console.error('[REDIS] Error:', err.message));
     cache.on('connect', () => console.log('[REDIS] Connected'));

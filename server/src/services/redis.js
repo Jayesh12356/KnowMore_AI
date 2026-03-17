@@ -76,20 +76,43 @@ if (redisUrl && !redisUrl.includes('localhost') && !redisUrl.includes('127.0.0.1
     const Redis = require('ioredis');
     const useTls = redisUrl.startsWith('rediss://');
 
-    cache = new Redis(redisUrl, {
+    const redisClient = new Redis(redisUrl, {
       tls: useTls ? { rejectUnauthorized: false } : undefined,
-      maxRetriesPerRequest: null,       // never reject commands with "max retries" error
-      enableOfflineQueue: true,         // queue commands during transient disconnects
+      maxRetriesPerRequest: null,
+      enableOfflineQueue: true,
       retryStrategy(times) {
-        if (times > 10) return null;    // stop reconnecting after 10 attempts
-        return Math.min(times * 500, 5000);
+        // Never give up — Upstash drops idle connections; always reconnect
+        return Math.min(times * 300, 5000);
       },
       reconnectOnError(err) {
         return err.message.includes('READONLY');
       },
     });
-    cache.on('error', (err) => console.error('[REDIS] Error:', err.message));
-    cache.on('connect', () => console.log('[REDIS] Connected'));
+    redisClient.on('error', (err) => console.error('[REDIS] Error:', err.message));
+    redisClient.on('connect', () => console.log('[REDIS] Connected'));
+
+    // Graceful fallback wrapper: if Redis is temporarily unavailable,
+    // catch errors and return safe defaults so routes degrade gracefully
+    // (cache miss → regenerate) instead of crashing with 500.
+    const fallback = new MemoryCache();
+    cache = new Proxy(redisClient, {
+      get(target, prop) {
+        if (typeof target[prop] === 'function') {
+          return async (...args) => {
+            try {
+              return await target[prop](...args);
+            } catch (err) {
+              console.warn(`[REDIS] Command "${prop}" failed, using fallback:`, err.message);
+              if (typeof fallback[prop] === 'function') {
+                return fallback[prop](...args);
+              }
+              return null;
+            }
+          };
+        }
+        return target[prop];
+      },
+    });
   } catch (e) {
     console.log('[CACHE] Redis not available, using in-memory cache');
     cache = new MemoryCache();

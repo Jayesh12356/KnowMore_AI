@@ -10,6 +10,7 @@ const newsRoutes = require('./routes/news');
 const topicsRoutes = require('./routes/topics');
 const progressRoutes = require('./routes/progress');
 const { llmLimiter, authLimiter, generalLimiter } = require('./middleware/rateLimiter');
+const { runMigrations } = require('./db/migrate');
 
 const app = express();
 
@@ -38,6 +39,17 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+async function start() {
+  try {
+    await runMigrations();
+  } catch (err) {
+    console.error('[STARTUP] Migration failed — aborting server start:', err.message);
+    process.exit(1);
+  }
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+
+start();
 
 module.exports = app;

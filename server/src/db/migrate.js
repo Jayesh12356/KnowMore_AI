@@ -66,17 +66,21 @@ CREATE INDEX IF NOT EXISTS idx_tp_user ON topic_progress(user_id);
 CREATE INDEX IF NOT EXISTS idx_tp_user_topic ON topic_progress(user_id, topic_id);
 `;
 
-async function migrate() {
-  try {
-    console.log('[DB] Running migrations...');
-    await db.query(MIGRATION_SQL);
-    console.log('[DB] Migrations complete.');
-  } catch (err) {
-    console.error('[DB] Migration error:', err.message);
-    process.exit(1);
-  } finally {
-    await db.pool.end();
-  }
+async function runMigrations() {
+  console.log('[DB] Running migrations...');
+  await db.query(MIGRATION_SQL);
+  console.log('[DB] Migrations complete.');
 }
 
-migrate();
+// CLI usage: `node src/db/migrate.js` or `npm run db:migrate`
+if (require.main === module) {
+  runMigrations()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('[DB] Migration error:', err.message);
+      process.exit(1);
+    })
+    .finally(() => db.pool.end());
+}
+
+module.exports = { runMigrations };

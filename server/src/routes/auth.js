@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db/client');
+const redis = require('../services/redis');
 
 const router = express.Router();
 
@@ -36,8 +37,16 @@ router.post('/login', async (req, res, next) => {
     const user = result.rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
+    // Check if user is banned
+    if (user.status === 'banned') {
+      return res.status(403).json({ error: 'Account has been banned. Contact support.' });
+    }
+
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    // Clear any previous session revocation so user can use the app
+    await redis.del(`revoked:${user.id}`);
 
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ user: { id: user.id, email: user.email, display_name: user.display_name }, token });

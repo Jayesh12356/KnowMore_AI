@@ -99,9 +99,11 @@ export default function StudyPage() {
     setError('');
     startProgressBar();
 
+    const provider = typeof window !== 'undefined' ? localStorage.getItem('llm_provider') || undefined : undefined;
+
     const tryGenerate = async () => {
       try {
-        const data = await api.generateContext(topicId, randomize);
+        const data = await api.generateContext(topicId, randomize, provider);
         stopProgressBar(true);
         setTimeout(() => {
           setContext(data.context);

@@ -5,6 +5,7 @@ const { chatJSON } = require('../services/llm');
 const { QUIZ_SYSTEM_PROMPT, GRADER_SYSTEM_PROMPT } = require('../prompts');
 const { makeSeed } = require('../utils/seed');
 const authMiddleware = require('../middleware/auth');
+const { getDefaultProviderName } = require('../services/providers');
 
 const router = express.Router();
 
@@ -23,15 +24,17 @@ function stripAnswers(quiz) {
 // POST /api/v1/quiz/generate
 router.post('/generate', authMiddleware, async (req, res, next) => {
   try {
-    const { topic_id, seed: inputSeed, randomize = false } = req.body;
+    const { topic_id, seed: inputSeed, randomize = false, provider: reqProvider } = req.body;
     if (!topic_id) return res.status(400).json({ error: 'topic_id required' });
+
+    const provider = reqProvider || getDefaultProviderName();
 
     // When randomize is true, use the client-provided seed (already unique)
     // or generate one server-side as fallback
     const seed = randomize
       ? (inputSeed || makeSeed(topic_id, true))
       : (inputSeed || makeSeed(topic_id, false));
-    const quizKey = `quiz:${topic_id}:${seed}`;
+    const quizKey = `quiz:${provider}:${topic_id}:${seed}`;
 
     // 1. Check quiz cache
     const cached = await redis.get(quizKey);
@@ -39,24 +42,36 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
       const quiz = JSON.parse(cached);
       const ttl = await redis.ttl(quizKey);
       return res.json({
-        topic_id, seed, cache_status: 'hit',
+        topic_id, seed, provider, cache_status: 'hit',
         quiz: stripAnswers(quiz),
         redis_key: quizKey, ttl_remaining_s: ttl,
       });
     }
 
-    // 2. Find context — try exact seed first, then find any existing context for this topic
-    const ctxKey = `ctx:${topic_id}:${seed}`;
+    // 2. Find context — try provider-specific context first, then any existing
+    const ctxKey = `ctx:${provider}:${topic_id}:${seed}`;
     let ctxRaw = await redis.get(ctxKey);
 
     if (!ctxRaw) {
-      // Try to find any existing context for this topic (from the deterministic daily seed)
+      // Try the daily seed for same provider
       const dailySeed = makeSeed(topic_id, false);
-      const dailyCtxKey = `ctx:${topic_id}:${dailySeed}`;
+      const dailyCtxKey = `ctx:${provider}:${topic_id}:${dailySeed}`;
       ctxRaw = await redis.get(dailyCtxKey);
 
+      if (!ctxRaw) {
+        // Try any provider's context as last resort
+        const fallbackCtxKey = `ctx:*:${topic_id}:${dailySeed}`;
+        // Can't use wildcard with get, so try known providers
+        for (const pName of ['openai', 'gemini', 'grok']) {
+          ctxRaw = await redis.get(`ctx:${pName}:${topic_id}:${dailySeed}`);
+          if (ctxRaw) break;
+          ctxRaw = await redis.get(`ctx:${pName}:${topic_id}:${seed}`);
+          if (ctxRaw) break;
+        }
+      }
+
       if (ctxRaw) {
-        // Cache it under the new seed too so submit can find it later
+        // Cache it under the new key too
         await redis.setex(ctxKey, 3600, ctxRaw);
       }
     }
@@ -69,13 +84,13 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
 
       const { EXPLANATION_SYSTEM_PROMPT } = require('../prompts');
       const ctxPrompt = `Generate an educational explanation for the following topic.\n\nTopic: ${topic.title}\nDescription: ${topic.short_description}\nSeed: ${seed}`;
-      const context = await chatJSON(EXPLANATION_SYSTEM_PROMPT, ctxPrompt, 0);
+      const context = await chatJSON(EXPLANATION_SYSTEM_PROMPT, ctxPrompt, 0, provider);
       ctxRaw = JSON.stringify(context);
       await redis.setex(ctxKey, 3600, ctxRaw);
     }
 
     // 3. Acquire dedup lock
-    const lockKey = `lock:quiz:${topic_id}:${seed}`;
+    const lockKey = `lock:quiz:${provider}:${topic_id}:${seed}`;
     const locked = await redis.set(lockKey, '1', 'EX', LOCK_TTL, 'NX');
     if (!locked) {
       return res.status(429).json({ error: 'Quiz generation in progress. Retry in a few seconds.' });
@@ -83,11 +98,11 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
 
     try {
       const userPrompt = `Generate a quiz based on this context. Do not add information beyond what is provided.\n\nContext:\n${ctxRaw}\n\nSeed: ${seed}`;
-      const quizFull = await chatJSON(QUIZ_SYSTEM_PROMPT, userPrompt, 0);
+      const quizFull = await chatJSON(QUIZ_SYSTEM_PROMPT, userPrompt, 0, provider);
       await redis.setex(quizKey, QUIZ_TTL, JSON.stringify(quizFull));
 
       res.json({
-        topic_id, seed, cache_status: 'miss',
+        topic_id, seed, provider, cache_status: 'miss',
         quiz: stripAnswers(quizFull),
         redis_key: quizKey, ttl_remaining_s: QUIZ_TTL,
       });
@@ -102,15 +117,17 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
 // POST /api/v1/quiz/submit
 router.post('/submit', authMiddleware, async (req, res, next) => {
   try {
-    const { topic_id, seed, answers } = req.body;
+    const { topic_id, seed, answers, provider: reqProvider } = req.body;
     const userId = req.user.id;
+    const provider = reqProvider || getDefaultProviderName();
 
     if (!topic_id || !seed || !answers) {
       return res.status(400).json({ error: 'topic_id, seed, and answers required' });
     }
 
-    const quizKey = `quiz:${topic_id}:${seed}`;
-    const ctxKey = `ctx:${topic_id}:${seed}`;
+    // Try provider-specific quiz key first, then legacy key
+    const quizKey = `quiz:${provider}:${topic_id}:${seed}`;
+    const ctxKey = `ctx:${provider}:${topic_id}:${seed}`;
 
     // 1. Fetch full quiz from cache
     const quizRaw = await redis.get(quizKey);
@@ -148,7 +165,7 @@ router.post('/submit', authMiddleware, async (req, res, next) => {
     let shortCorrect = 0;
     if (shortAnswersToGrade.length > 0) {
       const userPrompt = `Grade these short-answer responses:\n${JSON.stringify(shortAnswersToGrade)}`;
-      const grading = await chatJSON(GRADER_SYSTEM_PROMPT, userPrompt, 0);
+      const grading = await chatJSON(GRADER_SYSTEM_PROMPT, userPrompt, 0, provider);
 
       for (const gr of grading.results) {
         if (gr.score >= 0.7) shortCorrect++;

@@ -9,6 +9,7 @@ const quizRoutes = require('./routes/quiz');
 const newsRoutes = require('./routes/news');
 const topicsRoutes = require('./routes/topics');
 const progressRoutes = require('./routes/progress');
+const adminRoutes = require('./routes/admin');
 const { llmLimiter, authLimiter, generalLimiter } = require('./middleware/rateLimiter');
 const { runMigrations } = require('./db/migrate');
 
@@ -24,6 +25,15 @@ app.use('/api/', generalLimiter.middleware());
 // Health check (used by Vercel cron to prevent Render cold starts)
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 
+// LLM Providers list (public — no auth needed)
+const { getAvailableProviders, getDefaultProviderName } = require('./services/providers');
+app.get('/api/v1/providers', (_req, res) => {
+  res.json({
+    providers: getAvailableProviders(),
+    default: getDefaultProviderName(),
+  });
+});
+
 // Routes with targeted rate limits
 app.use('/api/v1/auth', authLimiter.middleware(), authRoutes);
 app.use('/api/v1/context', contextRoutes);      // LLM limiter applied inside route
@@ -31,6 +41,7 @@ app.use('/api/v1/quiz', quizRoutes);             // LLM limiter applied inside r
 app.use('/api/v1/news', newsRoutes);
 app.use('/api/v1/topics', topicsRoutes);
 app.use('/api/v1/progress', progressRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // Global error handler
 app.use((err, _req, res, _next) => {

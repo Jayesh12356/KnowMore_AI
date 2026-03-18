@@ -30,6 +30,8 @@ export default function HomePage() {
   const [user, setUser] = useState<any>(null);
   const [progress, setProgress] = useState<ProgressData | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [activeProvider, setActiveProvider] = useState<string>('');
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
@@ -56,10 +58,16 @@ export default function HomePage() {
     Promise.all([
       api.getTopics(),
       api.getProgress(),
+      api.getProviders().catch(() => ({ providers: [], default: 'openai' })),
     ])
-      .then(([topicData, progressData]) => {
+      .then(([topicData, progressData, providerData]) => {
         setTopics(topicData.topics);
         setProgress(progressData);
+        setProviders(providerData.providers);
+        // Use saved provider or default
+        const saved = localStorage.getItem('llm_provider');
+        const validSaved = saved && providerData.providers.some((p: any) => p.name === saved);
+        setActiveProvider(validSaved ? saved : providerData.default);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -87,7 +95,13 @@ export default function HomePage() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('llm_provider');
     router.push('/login');
+  };
+
+  const handleProviderChange = (name: string) => {
+    setActiveProvider(name);
+    localStorage.setItem('llm_provider', name);
   };
 
   const statusCounts = {
@@ -141,6 +155,31 @@ export default function HomePage() {
             🗞️ AI News
           </button>
         </div>
+
+        {/* Provider Selector */}
+        {providers.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.25rem' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>AI Engine:</span>
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+              {providers.map((p: any) => (
+                <button
+                  key={p.name}
+                  onClick={() => handleProviderChange(p.name)}
+                  className={`btn ${activeProvider === p.name ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.78rem',
+                    borderRadius: 'var(--radius-sm)',
+                    ...(activeProvider === p.name ? {} : { opacity: 0.7 }),
+                  }}
+                  id={`provider-${p.name}`}
+                >
+                  {p.icon} {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══ GLOBAL PROGRESS CARD ═══ */}

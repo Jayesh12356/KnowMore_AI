@@ -105,13 +105,19 @@ function parseFile(buffer, filename) {
   throw new Error(`Unsupported file format: .${ext}`);
 }
 
-// ─── GET /api/v1/topics — list all topics with optional search + pagination ───
-router.get('/', async (req, res, next) => {
+// ─── GET /api/v1/topics — list user's own topics with optional search + pagination ───
+router.get('/', authMiddleware, async (req, res, next) => {
   try {
     const { search, category, limit = 100, offset = 0 } = req.query;
+    const userId = req.user.id;
+
     let sql = 'SELECT id, title, short_description, category, created_at FROM topics';
     const params = [];
     const conditions = [];
+
+    // Only show topics created by this user
+    params.push(userId);
+    conditions.push(`created_by = $${params.length}`);
 
     if (search) {
       params.push(`%${search}%`);
@@ -122,9 +128,7 @@ router.get('/', async (req, res, next) => {
       conditions.push(`category = $${params.length}`);
     }
 
-    if (conditions.length > 0) {
-      sql += ' WHERE ' + conditions.join(' AND ');
-    }
+    sql += ' WHERE ' + conditions.join(' AND ');
 
     // Count total
     const countResult = await db.query(
@@ -141,8 +145,11 @@ router.get('/', async (req, res, next) => {
 
     const result = await db.query(sql, params);
 
-    // Get distinct categories
-    const catResult = await db.query('SELECT DISTINCT category FROM topics WHERE category IS NOT NULL ORDER BY category');
+    // Get distinct categories for THIS user only
+    const catResult = await db.query(
+      'SELECT DISTINCT category FROM topics WHERE created_by = $1 AND category IS NOT NULL ORDER BY category',
+      [userId]
+    );
 
     res.json({
       topics: result.rows,
@@ -167,12 +174,13 @@ router.post('/', authMiddleware, async (req, res, next) => {
 
     const desc = (short_description || `Study topic: ${title.trim()}`).trim();
 
+    const createdBy = req.user ? req.user.id : null;
     const result = await db.query(
-      `INSERT INTO topics (title, short_description, category)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (title) DO NOTHING
+      `INSERT INTO topics (title, short_description, category, created_by)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (title, created_by) DO NOTHING
        RETURNING id, title, short_description, category, created_at`,
-      [title.trim(), desc, (category || '').trim() || null]
+      [title.trim(), desc, (category || '').trim() || null, createdBy]
     );
 
     if (result.rows.length === 0) {
@@ -209,12 +217,13 @@ router.post('/bulk', authMiddleware, async (req, res, next) => {
       const desc = (t.short_description || `Study topic: ${title}`).trim();
       const category = (t.category || '').trim() || null;
 
+      const createdBy = req.user ? req.user.id : null;
       const result = await db.query(
-        `INSERT INTO topics (title, short_description, category)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (title) DO NOTHING
+        `INSERT INTO topics (title, short_description, category, created_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (title, created_by) DO NOTHING
          RETURNING id, title, short_description, category`,
-        [title, desc, category]
+        [title, desc, category, createdBy]
       );
       if (result.rows.length > 0) {
         inserted++;
@@ -260,12 +269,13 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res, n
     const insertedTopics = [];
 
     for (const t of topics) {
+      const createdBy = req.user ? req.user.id : null;
       const result = await db.query(
-        `INSERT INTO topics (title, short_description, category)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (title) DO NOTHING
+        `INSERT INTO topics (title, short_description, category, created_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (title, created_by) DO NOTHING
          RETURNING id, title, short_description, category`,
-        [t.title, t.short_description, t.category]
+        [t.title, t.short_description, t.category, createdBy]
       );
       if (result.rows.length > 0) {
         inserted++;
@@ -304,8 +314,8 @@ router.post('/preview', authMiddleware, upload.single('file'), async (req, res, 
       return res.status(400).json({ error: `Parse error: ${parseErr.message}` });
     }
 
-    // Check which already exist
-    const existingResult = await db.query('SELECT title FROM topics');
+    // Check which already exist for THIS user
+    const existingResult = await db.query('SELECT title FROM topics WHERE created_by = $1', [req.user.id]);
     const existingTitles = new Set(existingResult.rows.map(r => r.title.toLowerCase()));
 
     const preview = topics.map(t => ({
@@ -324,35 +334,46 @@ router.post('/preview', authMiddleware, upload.single('file'), async (req, res, 
   }
 });
 
-// ─── DELETE /api/v1/topics/all — hard delete ALL topics + related data ───
+// ─── DELETE /api/v1/topics/all — hard delete ALL of user's topics + related data ───
 router.delete('/all', authMiddleware, async (req, res, next) => {
   try {
-    // Delete all related data first (cascading hard delete)
-    await db.query('DELETE FROM quiz_attempts_meta');
-    await db.query('DELETE FROM user_scores');
-    await db.query('DELETE FROM topic_progress');
-    const result = await db.query('DELETE FROM topics RETURNING id');
+    const userId = req.user.id;
+
+    // Find all topic IDs owned by this user
+    const userTopics = await db.query('SELECT id FROM topics WHERE created_by = $1', [userId]);
+    const topicIds = userTopics.rows.map(r => r.id);
+
+    if (topicIds.length > 0) {
+      // Delete related data for these topics
+      await db.query('DELETE FROM quiz_attempts_meta WHERE topic_id = ANY($1)', [topicIds]);
+      await db.query('DELETE FROM user_scores WHERE topic_id = ANY($1)', [topicIds]);
+      await db.query('DELETE FROM topic_progress WHERE topic_id = ANY($1)', [topicIds]);
+      // Delete the topics
+      await db.query('DELETE FROM topics WHERE created_by = $1', [userId]);
+    }
 
     res.json({
-      message: `Permanently deleted all ${result.rowCount} topics and all related quiz data.`,
-      deleted_topics: result.rowCount,
+      message: `Permanently deleted all ${topicIds.length} topics and related data.`,
+      deleted_topics: topicIds.length,
     });
   } catch (err) {
     next(err);
   }
 });
 
-// ─── DELETE /api/v1/topics/:id — hard delete single topic + related data ───
+// ─── DELETE /api/v1/topics/:id — hard delete single topic (must be owned by user) ───
 router.delete('/:id', authMiddleware, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const userId = req.user.id;
 
     // Hard delete all related quiz data for this topic
     await db.query('DELETE FROM quiz_attempts_meta WHERE topic_id = $1', [id]);
     await db.query('DELETE FROM user_scores WHERE topic_id = $1', [id]);
     await db.query('DELETE FROM topic_progress WHERE topic_id = $1', [id]);
 
-    const result = await db.query('DELETE FROM topics WHERE id = $1 RETURNING id, title', [id]);
+    // Only delete if owned by this user
+    const result = await db.query('DELETE FROM topics WHERE id = $1 AND created_by = $2 RETURNING id, title', [id, userId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Topic not found.' });

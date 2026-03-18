@@ -64,8 +64,9 @@ export default function QuizPage() {
   }, []);
 
   const fetchQuiz = useCallback(async () => {
+    const provider = typeof window !== 'undefined' ? localStorage.getItem('llm_provider') || undefined : undefined;
     try {
-      const data = await api.generateQuiz(topicId, seed, randomize);
+      const data = await api.generateQuiz(topicId, seed, randomize, provider);
       stopProgressBar(true);
       setTimeout(() => {
         setQuestions(data.quiz.questions);
@@ -81,7 +82,8 @@ export default function QuizPage() {
       } else if (msg.includes('Context not found') || msg.includes('expired')) {
         // Context expired or not generated for this seed — generate fresh context, then retry
         try {
-          await api.generateContext(topicId, true);
+          const provider = typeof window !== 'undefined' ? localStorage.getItem('llm_provider') || undefined : undefined;
+          await api.generateContext(topicId, true, provider);
           retryRef.current = 0;
           fetchQuiz();
         } catch {
@@ -129,7 +131,8 @@ export default function QuizPage() {
         question_id: q.id,
         ...(q.type === 'mcq' ? { selected: answers[q.id] } : { text: answers[q.id] || '' }),
       }));
-      const data = await api.submitQuiz(topicId, seed, answerList);
+      const provider = typeof window !== 'undefined' ? localStorage.getItem('llm_provider') || undefined : undefined;
+      const data = await api.submitQuiz(topicId, seed, answerList, provider);
       setResults(data.results);
       setScorePct(data.score_pct);
       setBreakdown(data.breakdown);

@@ -61,7 +61,7 @@ export default function ManageTopicsPage() {
       const params = new URLSearchParams({ limit: String(LIMIT), offset: String(page * LIMIT) });
       if (search) params.set('search', search);
       if (catFilter) params.set('category', catFilter);
-      const r = await fetch(`${API}/topics?${params}`);
+      const r = await fetch(`${API}/topics?${params}`, { headers: getHeaders() });
       const data = await r.json();
       setTopics(data.topics || []);
       setTotal(data.total || 0);
@@ -219,24 +219,23 @@ export default function ManageTopicsPage() {
         Add, upload, or remove study topics. All topics work with AI explanation and quiz generation.
       </p>
 
-      {/* ═══ ADD TOPICS (QUEUE + BATCH) ═══ */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h2 style={{ marginBottom: '1rem' }}>➕ Add Topics</h2>
         <div className="flex-responsive">
           <input className="input" placeholder="Topic title *" value={newTitle} ref={titleInputRef}
             onChange={e => setNewTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddToQueue(); } }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAll(); } }}
             style={{ flex: '2 1 180px' }} id="topic-title-input" />
           <input className="input" placeholder="Description (optional)" value={newDesc} onChange={e => setNewDesc(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddToQueue(); } }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAll(); } }}
             style={{ flex: '3 1 180px' }} />
           <input className="input" placeholder="Category (optional)" value={newCat} onChange={e => setNewCat(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddToQueue(); } }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAll(); } }}
             style={{ flex: '1 1 100px' }} />
           <button
             onClick={handleAddToQueue}
             disabled={!newTitle.trim()}
-            title="Add to queue"
+            title="Queue this topic and add another"
             id="queue-topic-btn"
             style={{
               flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -250,6 +249,27 @@ export default function ManageTopicsPage() {
             +
           </button>
         </div>
+
+        {/* Add / Add All button — always visible when there's content */}
+        {(newTitle.trim() || topicQueue.length > 0) && (
+          <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-primary"
+              onClick={handleAddAll}
+              disabled={addingAll}
+              id="add-all-topics-btn"
+            >
+              {addingAll ? '⏳ Adding...' : topicQueue.length > 0
+                ? `📥 Add All (${topicQueue.length + (newTitle.trim() ? 1 : 0)})`
+                : '📥 Add Topic'}
+            </button>
+            {topicQueue.length > 0 && (
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Use <strong>+</strong> to queue more topics before adding
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Queued topics chips */}
         {topicQueue.length > 0 && (
@@ -285,15 +305,6 @@ export default function ManageTopicsPage() {
                 </span>
               ))}
             </div>
-            <button
-              className="btn btn-primary"
-              onClick={handleAddAll}
-              disabled={addingAll}
-              id="add-all-topics-btn"
-              style={{ marginTop: '0.75rem' }}
-            >
-              {addingAll ? '⏳ Adding...' : `📥 Add All (${topicQueue.length})`}
-            </button>
           </div>
         )}
 

@@ -64,6 +64,68 @@ CREATE TABLE IF NOT EXISTS topic_progress (
 );
 CREATE INDEX IF NOT EXISTS idx_tp_user ON topic_progress(user_id);
 CREATE INDEX IF NOT EXISTS idx_tp_user_topic ON topic_progress(user_id, topic_id);
+
+-- Super Admin tables
+CREATE TABLE IF NOT EXISTS admins (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email           VARCHAR(255) NOT NULL UNIQUE,
+  password_hash   VARCHAR(255) NOT NULL,
+  display_name    VARCHAR(100),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Add status column to users (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'status'
+  ) THEN
+    ALTER TABLE users ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active';
+  END IF;
+END $$;
+
+-- Add created_by column to topics (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'topics' AND column_name = 'created_by'
+  ) THEN
+    ALTER TABLE topics ADD COLUMN created_by UUID REFERENCES users(id) ON DELETE CASCADE;
+    CREATE INDEX idx_topics_created_by ON topics(created_by);
+  END IF;
+END $$;
+
+-- Change UNIQUE constraint from (title) to (title, created_by) so each user has their own topics
+DO $$
+BEGIN
+  -- Drop old global unique constraint on title if it exists
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'topics_title_key' AND conrelid = 'topics'::regclass
+  ) THEN
+    ALTER TABLE topics DROP CONSTRAINT topics_title_key;
+  END IF;
+  -- Create per-user unique constraint if not exists
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'topics_title_created_by_key' AND conrelid = 'topics'::regclass
+  ) THEN
+    ALTER TABLE topics ADD CONSTRAINT topics_title_created_by_key UNIQUE (title, created_by);
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id              SERIAL PRIMARY KEY,
+  admin_id        UUID NOT NULL REFERENCES admins(id),
+  action          VARCHAR(100) NOT NULL,
+  target_user_id  UUID,
+  details         JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_admin ON admin_audit_log(admin_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at DESC);
 `;
 
 async function runMigrations() {

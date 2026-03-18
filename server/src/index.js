@@ -63,6 +63,23 @@ async function start() {
     process.exit(1);
   }
 
+  // Seed default admin (safe to run every boot — uses ON CONFLICT DO UPDATE)
+  try {
+    const bcrypt = require('bcryptjs');
+    const db = require('./db/client');
+    const email = 'admin@knowmore.ai';
+    const hash = await bcrypt.hash('Admin@123', 10);
+    await db.query(
+      `INSERT INTO admins (email, password_hash, display_name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO NOTHING`,
+      [email, hash, 'Super Admin']
+    );
+    console.log('[STARTUP] Admin account ensured');
+  } catch (err) {
+    console.warn('[STARTUP] Admin seed skipped:', err.message);
+  }
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[STARTUP] Server running on port ${PORT}`);
   });

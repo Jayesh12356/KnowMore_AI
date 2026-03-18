@@ -249,7 +249,7 @@ router.get('/users/:id', async (req, res, next) => {
 
     // Basic user info
     const userResult = await db.query(
-      'SELECT id, email, display_name, status, created_at FROM users WHERE id = $1',
+      'SELECT id, email, display_name, status, created_at, allowed_providers FROM users WHERE id = $1',
       [userId]
     );
     if (userResult.rows.length === 0) {
@@ -566,6 +566,51 @@ router.get('/topics/insights', async (req, res, next) => {
       most_studied: mostStudied.rows,
       least_studied: leastStudied.rows,
       highest_failure: highestFailure.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ═══════════════════════════════════════
+//  USER PROVIDER ACCESS MANAGEMENT
+// ═══════════════════════════════════════
+
+router.put('/users/:id/providers', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { providers } = req.body; // Array of provider names, e.g. ['grok', 'openai']
+
+    if (!Array.isArray(providers) || providers.length === 0) {
+      return res.status(400).json({ error: 'providers must be a non-empty array of provider names' });
+    }
+
+    const validProviders = ['openai', 'gemini', 'grok'];
+    const filtered = providers.filter(p => validProviders.includes(p));
+    if (filtered.length === 0) {
+      return res.status(400).json({ error: 'At least one valid provider required (openai, gemini, grok)' });
+    }
+
+    const allowedStr = filtered.join(',');
+    const result = await db.query(
+      'UPDATE users SET allowed_providers = $1 WHERE id = $2 RETURNING id, email, allowed_providers',
+      [allowedStr, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Audit log
+    await db.query(
+      `INSERT INTO admin_audit_log (admin_id, action, target_user_id, details)
+       VALUES ($1, 'update_providers', $2, $3)`,
+      [req.admin.id, id, JSON.stringify({ providers: filtered })]
+    );
+
+    res.json({
+      message: `Updated providers for ${result.rows[0].email}`,
+      allowed_providers: filtered,
     });
   } catch (err) {
     next(err);

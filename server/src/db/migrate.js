@@ -126,6 +126,20 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_admin ON admin_audit_log(admin_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at DESC);
+
+-- Add allowed_providers column to users (idempotent)
+-- Default for NEW users = 'grok' only. Existing users get all providers.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'allowed_providers'
+  ) THEN
+    ALTER TABLE users ADD COLUMN allowed_providers TEXT NOT NULL DEFAULT 'grok';
+    -- Grant existing users all providers so we don't break their access
+    UPDATE users SET allowed_providers = 'grok,openai,gemini' WHERE allowed_providers = 'grok';
+  END IF;
+END $$;
 `;
 
 async function runMigrations() {

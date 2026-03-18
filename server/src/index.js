@@ -25,12 +25,33 @@ app.use('/api/', generalLimiter.middleware());
 // Health check (used by Vercel cron to prevent Render cold starts)
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 
-// LLM Providers list (public — no auth needed)
+// LLM Providers list — auth-aware (returns allowed status per user)
 const { getAvailableProviders, getDefaultProviderName } = require('./services/providers');
-app.get('/api/v1/providers', (_req, res) => {
+const jwt = require('jsonwebtoken');
+const db = require('./db/client');
+app.get('/api/v1/providers', async (req, res) => {
+  const providers = getAvailableProviders();
+  const defaultProvider = getDefaultProviderName();
+
+  // Try to get user's allowed providers if authenticated
+  let userAllowed = null;
+  try {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      const decoded = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+      const result = await db.query('SELECT allowed_providers FROM users WHERE id = $1', [decoded.id]);
+      if (result.rows.length) {
+        userAllowed = result.rows[0].allowed_providers.split(',').map(s => s.trim());
+      }
+    }
+  } catch { /* ignore — treat as unauthenticated */ }
+
   res.json({
-    providers: getAvailableProviders(),
-    default: getDefaultProviderName(),
+    providers: providers.map(p => ({
+      ...p,
+      allowed: userAllowed ? userAllowed.includes(p.name) : true,
+    })),
+    default: defaultProvider,
   });
 });
 

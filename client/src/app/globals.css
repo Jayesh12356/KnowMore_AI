@@ -2380,14 +2380,42 @@ th, td {
   cursor: pointer;
 }
 
-/* ─── Admin Responsive ─── */
+/* ─── Table Responsive Wrapper ─── */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hidden columns on mobile */
+@media (max-width: 768px) {
+  .col-hide-mobile {
+    display: none !important;
+  }
+}
+
+/* ─── Admin Login Page ─── */
+.admin-login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+/* ─── Admin Responsive — 900px (two-col → single-col) ─── */
 @media (max-width: 900px) {
   .admin-two-col {
     grid-template-columns: 1fr;
   }
 }
 
+/* ─── Admin Responsive — 768px (tablet / mobile sidebar) ─── */
 @media (max-width: 768px) {
+  /* KEY FIX: Stack mobile header above main content */
+  .admin-layout {
+    flex-direction: column;
+  }
+
   .admin-sidebar {
     position: fixed;
     left: -280px;
@@ -2408,18 +2436,43 @@ th, td {
 
   .admin-mobile-header {
     display: flex;
+    width: 100%;
+    position: sticky;
+    top: 0;
+    z-index: 40;
   }
 
   .admin-overlay {
     display: block;
+    position: fixed;
+  }
+
+  .admin-main {
+    width: 100%;
+    flex: 1;
   }
 
   .admin-content {
     padding: 1.25rem 1rem;
+    max-width: 100%;
   }
 
+  .admin-page-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .admin-page-header p {
+    font-size: 0.82rem;
+  }
+
+  /* Stats grid → 2-col */
   .admin-stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* User profile → stacked center */
+  .admin-user-profile {
+    padding: 1.25rem;
   }
 
   .admin-user-profile-header {
@@ -2428,38 +2481,340 @@ th, td {
     gap: 0.75rem;
   }
 
+  .admin-user-profile-info > div[style] {
+    justify-content: center;
+  }
+
   .admin-user-actions {
     justify-content: center;
   }
 
+  /* Filters → stack vertically */
+  .admin-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-filters .input {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .admin-filter-pills {
+    justify-content: center;
+  }
+
+  /* Table compact */
+  .admin-table th,
+  .admin-table td {
+    padding: 0.6rem 0.65rem;
+    font-size: 0.82rem;
+  }
+
+  .admin-user-cell {
+    gap: 0.5rem;
+  }
+
+  .admin-user-cell-name {
+    font-size: 0.82rem;
+  }
+
+  .admin-user-cell-email {
+    font-size: 0.7rem;
+  }
+
+  /* Activity cards — stack text below avatar */
+  .admin-activity-card {
+    padding: 0.85rem 1rem !important;
+  }
+
   .admin-activity-card-content {
     flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+
+  .admin-activity-time {
+    width: 100%;
+    text-align: right;
+    margin-top: -0.25rem;
+    padding-left: 2.75rem;
   }
 
   .admin-activity-main {
     font-size: 0.82rem;
   }
 
-  .admin-filters {
-    flex-direction: column;
+  /* Pagination */
+  .admin-pagination {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
-  .admin-page-header h1 {
-    font-size: 1.3rem;
+  .admin-pagination .btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.82rem;
+  }
+
+  /* Settings page */
+  .admin-content .card[style*="maxWidth"] {
+    max-width: 100% !important;
+  }
+
+  /* Modal responsive */
+  .admin-modal {
+    padding: 1.25rem;
+    max-width: 90vw;
+  }
+
+  .admin-modal h2 {
+    font-size: 1.1rem;
+  }
+
+  /* List items */
+  .admin-list-item {
+    gap: 0.5rem;
+    padding: 0.6rem 0;
+  }
+
+  .admin-list-title {
+    font-size: 0.82rem;
+  }
+
+  .admin-list-meta {
+    font-size: 0.72rem;
   }
 }
 
-@media (max-width: 480px) {
-  .admin-stats-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
+/* ─── Admin Responsive — 640px (large phone) ─── */
+@media (max-width: 640px) {
+  .admin-content {
+    padding: 1rem 0.75rem;
   }
 
+  /* Activity — info stacks below avatar */
+  .admin-activity-card-content {
+    align-items: flex-start;
+  }
+
+  .admin-activity-info {
+    flex-basis: calc(100% - 3rem);
+  }
+
+  /* Pagination buttons full-width */
+  .admin-pagination {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .admin-pagination .btn {
+    width: 100%;
+    max-width: 200px;
+    justify-content: center;
+  }
+
+  /* User detail actions stack */
+  .admin-user-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-user-actions .btn {
+    justify-content: center;
+  }
+}
+
+/* ─── Admin Responsive — 480px (phone) ─── */
+@media (max-width: 480px) {
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  /* Horizontal stat cards — much cleaner in single column */
   .admin-stat-card {
-    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    text-align: left;
+  }
+
+  .admin-stat-icon {
+    font-size: 1.3rem;
+    margin-bottom: 0;
+    flex-shrink: 0;
   }
 
   .admin-stat-value {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  .admin-stat-label {
+    font-size: 0.72rem;
+    margin-top: 0.1rem;
+  }
+
+  .admin-page-header h1 {
+    font-size: 1.15rem;
+  }
+
+  .admin-content {
+    padding: 0.85rem 0.6rem;
+  }
+
+  /* Mobile header compact */
+  .admin-mobile-header {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .admin-mobile-title {
+    font-size: 0.9rem;
+  }
+
+  .admin-hamburger {
+    font-size: 1.2rem;
+  }
+
+  /* Activity card compact */
+  .admin-activity-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.7rem;
+  }
+
+  .admin-activity-main {
+    font-size: 0.78rem;
+  }
+
+  .admin-activity-meta {
+    gap: 0.35rem;
+  }
+
+  .admin-activity-meta .badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .admin-activity-time {
+    font-size: 0.7rem;
+    padding-left: 2.25rem;
+  }
+
+  /* Filter pills smaller */
+  .admin-filter-pill {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+  }
+
+  /* Table extra compact */
+  .admin-table th,
+  .admin-table td {
+    padding: 0.5rem 0.45rem;
+    font-size: 0.78rem;
+  }
+
+  .admin-table th {
+    font-size: 0.68rem;
+  }
+
+  .admin-activity-avatar,
+  .admin-user-cell .admin-activity-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 0.65rem;
+  }
+
+  /* User profile avatar smaller */
+  .admin-user-profile-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 1.1rem;
+  }
+
+  .admin-user-profile-header h1 {
+    font-size: 1.15rem !important;
+  }
+
+  /* Settings inputs */
+  .admin-content .card {
+    padding: 1rem !important;
+  }
+
+  .admin-content .card h2 {
+    font-size: 1rem;
+  }
+
+  /* Pagination info */
+  .admin-pagination-info {
+    font-size: 0.78rem;
   }
 }
+
+/* ─── Admin Responsive — 360px (small phone) ─── */
+@media (max-width: 360px) {
+  .admin-content {
+    padding: 0.65rem 0.45rem;
+  }
+
+  .admin-stats-grid {
+    gap: 0.5rem;
+  }
+
+  .admin-stat-card {
+    padding: 0.7rem 0.5rem;
+  }
+
+  .admin-stat-value {
+    font-size: 1rem;
+  }
+
+  .admin-stat-label {
+    font-size: 0.65rem;
+  }
+
+  .admin-page-header h1 {
+    font-size: 1.05rem;
+  }
+
+  .admin-page-header p {
+    font-size: 0.75rem;
+  }
+
+  .admin-user-profile-avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 1rem;
+  }
+
+  .admin-user-profile-header h1 {
+    font-size: 1.05rem !important;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 0.4rem 0.35rem;
+    font-size: 0.72rem;
+  }
+
+  .admin-filter-pill {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .admin-mobile-header {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .admin-mobile-title {
+    font-size: 0.82rem;
+  }
+
+  .badge {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.35rem;
+  }
+}
+

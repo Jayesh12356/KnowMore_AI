@@ -58,16 +58,19 @@ export default function HomePage() {
     Promise.all([
       api.getTopics(),
       api.getProgress(),
-      api.getProviders().catch(() => ({ providers: [], default: 'openai' })),
+      api.getProviders().catch(() => ({ providers: [], default: 'grok' })),
     ])
       .then(([topicData, progressData, providerData]) => {
         setTopics(topicData.topics);
         setProgress(progressData);
         setProviders(providerData.providers);
-        // Use saved provider or default
+        // Use saved provider if it's allowed, otherwise pick first allowed or default
         const saved = localStorage.getItem('llm_provider');
-        const validSaved = saved && providerData.providers.some((p: any) => p.name === saved);
-        setActiveProvider(validSaved ? saved : providerData.default);
+        const allowedProviders = providerData.providers.filter((p: any) => p.allowed);
+        const savedIsAllowed = saved && allowedProviders.some((p: any) => p.name === saved);
+        const chosen = savedIsAllowed ? saved : (allowedProviders[0]?.name || providerData.default);
+        setActiveProvider(chosen);
+        localStorage.setItem('llm_provider', chosen);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -100,6 +103,9 @@ export default function HomePage() {
   };
 
   const handleProviderChange = (name: string) => {
+    // Only allow switching to permitted providers
+    const provider = providers.find((p: any) => p.name === name);
+    if (!provider?.allowed) return;
     setActiveProvider(name);
     localStorage.setItem('llm_provider', name);
   };
@@ -166,15 +172,18 @@ export default function HomePage() {
                   key={p.name}
                   onClick={() => handleProviderChange(p.name)}
                   className={`btn ${activeProvider === p.name ? 'btn-primary' : 'btn-secondary'}`}
+                  disabled={!p.allowed}
+                  title={p.allowed ? p.label : `🔒 ${p.label} — Contact admin to enable`}
                   style={{
                     padding: '0.35rem 0.75rem',
                     fontSize: '0.78rem',
                     borderRadius: 'var(--radius-sm)',
-                    ...(activeProvider === p.name ? {} : { opacity: 0.7 }),
+                    ...(activeProvider === p.name ? {} : { opacity: p.allowed ? 0.7 : 0.35 }),
+                    ...(!p.allowed ? { cursor: 'not-allowed', filter: 'grayscale(0.8)' } : {}),
                   }}
                   id={`provider-${p.name}`}
                 >
-                  {p.icon} {p.label}
+                  {p.allowed ? p.icon : '🔒'} {p.label}
                 </button>
               ))}
             </div>

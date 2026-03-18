@@ -34,7 +34,7 @@ function getAvailableProviders() {
  * Get the default provider name.
  */
 function getDefaultProviderName() {
-  const envDefault = (process.env.LLM_DEFAULT_PROVIDER || '').toLowerCase();
+  const envDefault = (process.env.LLM_DEFAULT_PROVIDER || 'grok').toLowerCase();
   if (envDefault) {
     const provider = ALL_PROVIDERS.find(p => p.name === envDefault);
     if (provider && provider.isAvailable()) return provider.name;

@@ -153,4 +153,9 @@ export const adminApi = {
     adminFetch<any>('/admin/auth/change-password', {
       method: 'PUT', body: JSON.stringify({ current_password, new_password }),
     }),
+
+  updateUserProviders: (id: string, providers: string[]) =>
+    adminFetch<any>(`/admin/users/${id}/providers`, {
+      method: 'PUT', body: JSON.stringify({ providers }),
+    }),
 };

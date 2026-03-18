@@ -29,6 +29,15 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
 
     const provider = reqProvider || getDefaultProviderName();
 
+    // Enforce provider access for this user
+    const userResult = await db.query('SELECT allowed_providers FROM users WHERE id = $1', [req.user.id]);
+    if (userResult.rows.length) {
+      const allowed = userResult.rows[0].allowed_providers.split(',').map(s => s.trim());
+      if (!allowed.includes(provider)) {
+        return res.status(403).json({ error: `You don't have access to ${provider}. Contact admin to enable it.` });
+      }
+    }
+
     // When randomize is true, use the client-provided seed (already unique)
     // or generate one server-side as fallback
     const seed = randomize

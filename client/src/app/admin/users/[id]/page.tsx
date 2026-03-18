@@ -122,6 +122,71 @@ export default function AdminUserDetailPage() {
           </button>
         </div>
 
+        {/* LLM Access Control */}
+        <div style={{ marginTop: '1.5rem' }}>
+          <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>🤖 LLM Access Control</h3>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {[
+              { name: 'grok', label: 'Grok (xAI)', icon: '⚡' },
+              { name: 'openai', label: 'OpenAI GPT', icon: '🤖' },
+              { name: 'gemini', label: 'Google Gemini', icon: '✨' },
+            ].map((prov) => {
+              const currentAllowed = (user.allowed_providers || 'grok').split(',').map((s: string) => s.trim());
+              const isEnabled = currentAllowed.includes(prov.name);
+              return (
+                <button
+                  key={prov.name}
+                  onClick={async () => {
+                    const newList = isEnabled
+                      ? currentAllowed.filter((p: string) => p !== prov.name)
+                      : [...currentAllowed, prov.name];
+                    if (newList.length === 0) {
+                      setMessage('⚠️ At least one provider must remain enabled.');
+                      return;
+                    }
+                    setActionLoading(`provider-${prov.name}`);
+                    try {
+                      await adminApi.updateUserProviders(userId, newList);
+                      const updated = await adminApi.getUser(userId);
+                      setData(updated);
+                      setMessage(`✅ ${prov.label} ${isEnabled ? 'disabled' : 'enabled'} for this user`);
+                    } catch (err: any) {
+                      setMessage(`❌ ${err.message}`);
+                    } finally {
+                      setActionLoading('');
+                    }
+                  }}
+                  disabled={!!actionLoading}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.6rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: `2px solid ${isEnabled ? 'var(--accent-success)' : 'var(--border)'}`,
+                    background: isEnabled ? 'rgba(16,185,129,0.08)' : 'var(--bg-glass)',
+                    color: isEnabled ? 'var(--accent-success)' : 'var(--text-muted)',
+                    cursor: actionLoading ? 'wait' : 'pointer',
+                    fontSize: '0.85rem', fontWeight: 600,
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{
+                    width: 18, height: 18, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.7rem',
+                    background: isEnabled ? 'var(--accent-success)' : 'var(--border)',
+                    color: '#fff',
+                  }}>
+                    {actionLoading === `provider-${prov.name}` ? '⏳' : isEnabled ? '✓' : '✕'}
+                  </span>
+                  {prov.icon} {prov.label}
+                  {isEnabled ? '' : ' 🔒'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {message && (
           <div className="admin-action-message">{message}</div>
         )}

@@ -4,16 +4,14 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-// ─── GET /api/v1/progress — global progress stats + per-topic status ───
+// ─── GET /api/v1/progress — per-topic progress map ───
+// The frontend computes all counts (all, completed, in_progress, new)
+// directly from the topics list + this progress map — single source of truth.
 router.get('/', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    // Total topics count — scoped to this user's topics
-    const totalResult = await db.query('SELECT COUNT(*) as total FROM topics WHERE created_by = $1', [userId]);
-    const totalTopics = parseInt(totalResult.rows[0].total);
-
-    // Per-topic progress for this user — ONLY for topics they own
+    // Per-topic progress for this user (only topics they own)
     const progressResult = await db.query(
       `SELECT tp.topic_id, tp.status, tp.opened_at, tp.completed_at
        FROM topic_progress tp
@@ -23,28 +21,15 @@ router.get('/', authMiddleware, async (req, res, next) => {
     );
 
     const progressMap = {};
-    let completed = 0;
-    let inProgress = 0;
-
     for (const row of progressResult.rows) {
       progressMap[row.topic_id] = {
         status: row.status,
         opened_at: row.opened_at,
         completed_at: row.completed_at,
       };
-      if (row.status === 'completed') completed++;
-      else if (row.status === 'in_progress') inProgress++;
     }
 
-    const newCount = totalTopics - completed - inProgress;
-    const percentage = totalTopics > 0 ? parseFloat(((completed / totalTopics) * 100).toFixed(1)) : 0;
-
     res.json({
-      total_topics: totalTopics,
-      completed,
-      in_progress: inProgress,
-      new_count: newCount,
-      percentage,
       topics: progressMap,
     });
   } catch (err) {

@@ -110,11 +110,12 @@ export default function HomePage() {
     localStorage.setItem('llm_provider', name);
   };
 
+  // Compute counts from the ACTUAL topics list + progress map — guaranteed to add up
   const statusCounts = {
     all: topics.length,
-    completed: progress?.completed || 0,
-    in_progress: progress?.in_progress || 0,
-    new: progress?.new_count || topics.length,
+    completed: topics.filter(t => getTopicStatus(t.id) === 'completed').length,
+    in_progress: topics.filter(t => getTopicStatus(t.id) === 'in_progress').length,
+    new: topics.filter(t => getTopicStatus(t.id) === 'new').length,
   };
 
   return (

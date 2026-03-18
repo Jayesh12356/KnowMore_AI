@@ -9,8 +9,8 @@ router.get('/', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    // Total topics count
-    const totalResult = await db.query('SELECT COUNT(*) as total FROM topics');
+    // Total topics count — scoped to this user's topics
+    const totalResult = await db.query('SELECT COUNT(*) as total FROM topics WHERE created_by = $1', [userId]);
     const totalTopics = parseInt(totalResult.rows[0].total);
 
     // Per-topic progress for this user

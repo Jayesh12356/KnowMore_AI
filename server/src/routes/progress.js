@@ -13,10 +13,11 @@ router.get('/', authMiddleware, async (req, res, next) => {
     const totalResult = await db.query('SELECT COUNT(*) as total FROM topics WHERE created_by = $1', [userId]);
     const totalTopics = parseInt(totalResult.rows[0].total);
 
-    // Per-topic progress for this user
+    // Per-topic progress for this user — ONLY for topics they own
     const progressResult = await db.query(
       `SELECT tp.topic_id, tp.status, tp.opened_at, tp.completed_at
        FROM topic_progress tp
+       JOIN topics t ON t.id = tp.topic_id AND t.created_by = $1
        WHERE tp.user_id = $1`,
       [userId]
     );

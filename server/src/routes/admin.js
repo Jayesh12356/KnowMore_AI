@@ -299,6 +299,12 @@ router.get('/users/:id', async (req, res, next) => {
       [userId]
     );
 
+    // Total topics added by this user
+    const topicsAddedResult = await db.query(
+      'SELECT COUNT(*) as total FROM topics WHERE created_by = $1',
+      [userId]
+    );
+
     res.json({
       user,
       stats: {
@@ -306,6 +312,7 @@ router.get('/users/:id', async (req, res, next) => {
         overall_avg: parseFloat(statsResult.rows[0].overall_avg),
         last_active: statsResult.rows[0].last_active,
         topics_studied: topicsResult.rows.length,
+        topics_added: parseInt(topicsAddedResult.rows[0].total),
       },
       topics: topicsResult.rows,
       recent_activity: activityResult.rows,

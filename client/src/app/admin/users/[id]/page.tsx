@@ -218,6 +218,11 @@ export default function AdminUserDetailPage() {
       {/* Stats Cards */}
       <div className="admin-stats-grid" style={{ marginTop: '1.5rem' }}>
         <div className="admin-stat-card">
+          <div className="admin-stat-icon">📁</div>
+          <div className="admin-stat-value">{stats.topics_added}</div>
+          <div className="admin-stat-label">Topics Added</div>
+        </div>
+        <div className="admin-stat-card">
           <div className="admin-stat-icon">📚</div>
           <div className="admin-stat-value">{stats.topics_studied}</div>
           <div className="admin-stat-label">Topics Studied</div>

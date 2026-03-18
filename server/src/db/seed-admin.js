@@ -16,7 +16,7 @@ async function seed() {
   const result = await db.query(
     `INSERT INTO admins (email, password_hash, display_name)
      VALUES ($1, $2, $3)
-     ON CONFLICT (email) DO NOTHING
+     ON CONFLICT (email) DO UPDATE SET password_hash = $2, display_name = $3
      RETURNING id, email, display_name`,
     [ADMIN_EMAIL, hash, ADMIN_NAME]
   );

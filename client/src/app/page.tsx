@@ -13,11 +13,6 @@ interface Topic {
 }
 
 interface ProgressData {
-  total_topics: number;
-  completed: number;
-  in_progress: number;
-  new_count: number;
-  percentage: number;
   topics: Record<string, { status: string; opened_at: string | null; completed_at: string | null }>;
 }
 
@@ -193,56 +188,59 @@ export default function HomePage() {
       </div>
 
       {/* ═══ GLOBAL PROGRESS CARD ═══ */}
-      {!loading && progress && topics.length > 0 && (
-        <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
-          <div className="progress-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h2 style={{ margin: 0 }}>📊 Your Progress</h2>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
-              <span className="progress-pct" style={{
-                fontSize: '2rem', fontWeight: 800,
-                background: 'var(--gradient-primary)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                lineHeight: 1,
-              }}>
-                {progress.percentage}%
-              </span>
-              <span className="progress-pct-label" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>complete</span>
+      {!loading && progress && topics.length > 0 && (() => {
+        const pct = statusCounts.all > 0 ? parseFloat(((statusCounts.completed / statusCounts.all) * 100).toFixed(1)) : 0;
+        return (
+          <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
+            <div className="progress-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h2 style={{ margin: 0 }}>📊 Your Progress</h2>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
+                <span className="progress-pct" style={{
+                  fontSize: '2rem', fontWeight: 800,
+                  background: 'var(--gradient-primary)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  lineHeight: 1,
+                }}>
+                  {pct}%
+                </span>
+                <span className="progress-pct-label" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>complete</span>
+              </div>
             </div>
-          </div>
 
-          <div className="progress-bar" style={{ marginBottom: '0.75rem' }}>
-            <div className="progress-fill" style={{ width: `${progress.percentage}%` }} />
-          </div>
+            <div className="progress-bar" style={{ marginBottom: '0.75rem' }}>
+              <div className="progress-fill" style={{ width: `${pct}%` }} />
+            </div>
 
-          <div className="progress-stats">
-            <div className="progress-stat-item">
-              <span className="progress-stat-dot" style={{ background: 'var(--accent-success)' }} />
-              <span style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--accent-success)' }}>{progress.completed}</strong> Completed
-              </span>
-            </div>
-            <div className="progress-stat-item">
-              <span className="progress-stat-dot" style={{ background: 'var(--accent-warning)' }} />
-              <span style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--accent-warning)' }}>{progress.in_progress}</strong> In Progress
-              </span>
-            </div>
-            <div className="progress-stat-item">
-              <span className="progress-stat-dot" style={{ background: 'var(--accent-info)' }} />
-              <span style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--accent-info)' }}>{progress.new_count}</strong> New
-              </span>
-            </div>
-            <div className="progress-stat-item">
-              <span style={{ color: 'var(--text-muted)' }}>
-                {progress.completed}/{progress.total_topics} topics
-              </span>
+            <div className="progress-stats">
+              <div className="progress-stat-item">
+                <span className="progress-stat-dot" style={{ background: 'var(--accent-success)' }} />
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--accent-success)' }}>{statusCounts.completed}</strong> Completed
+                </span>
+              </div>
+              <div className="progress-stat-item">
+                <span className="progress-stat-dot" style={{ background: 'var(--accent-warning)' }} />
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--accent-warning)' }}>{statusCounts.in_progress}</strong> In Progress
+                </span>
+              </div>
+              <div className="progress-stat-item">
+                <span className="progress-stat-dot" style={{ background: 'var(--accent-info)' }} />
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--accent-info)' }}>{statusCounts.new}</strong> New
+                </span>
+              </div>
+              <div className="progress-stat-item">
+                <span style={{ color: 'var(--text-muted)' }}>
+                  {statusCounts.completed}/{statusCounts.all} topics
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 style={{ marginBottom: '0.5rem' }}>Choose a topic to study</h1>
@@ -326,12 +324,12 @@ export default function HomePage() {
                       <div className="category">{topic.category || 'Uncategorized'}</div>
                       {status === 'completed' && (
                         <span className="status-badge" style={{ background: 'var(--accent-success-soft)', color: 'var(--accent-success)' }}>
-                          ✅ Done
+                          Done
                         </span>
                       )}
                       {status === 'in_progress' && (
                         <span className="status-badge" style={{ background: 'var(--accent-warning-soft)', color: 'var(--accent-warning)' }}>
-                          🔄 Studying
+                          Studying
                         </span>
                       )}
                     </div>

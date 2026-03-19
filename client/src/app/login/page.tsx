@@ -7,6 +7,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 
 function LoginForm() {
   const [isRegister, setIsRegister] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -31,9 +32,14 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const result = isRegister
-        ? await api.register(email, password, name)
-        : await api.login(email, password);
+      let result;
+      if (isForgotPassword) {
+        result = await api.resetPassword(email, password);
+      } else if (isRegister) {
+        result = await api.register(email, password, name);
+      } else {
+        result = await api.login(email, password);
+      }
 
       localStorage.setItem('token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
@@ -52,12 +58,12 @@ function LoginForm() {
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div className="header-logo login-logo" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>⚡ StudyQuiz AI</div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            {isRegister ? 'Create your account' : 'Welcome back'}
+            {isForgotPassword ? 'Reset your password' : isRegister ? 'Create your account' : 'Welcome back'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          {isRegister && (
+          {isRegister && !isForgotPassword && (
             <div style={{ marginBottom: '1rem' }}>
               <input className="input" placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} id="register-name" />
             </div>
@@ -66,7 +72,7 @@ function LoginForm() {
             <input className="input" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required id="login-email" />
           </div>
           <div style={{ marginBottom: '1.5rem' }}>
-            <input className="input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required id="login-password" />
+            <input className="input" type="password" placeholder={isForgotPassword ? "New Password" : "Password"} value={password} onChange={(e) => setPassword(e.target.value)} required id="login-password" />
           </div>
 
           {error && (
@@ -74,18 +80,39 @@ function LoginForm() {
           )}
 
           <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }} id="login-submit">
-            {loading ? 'Loading...' : isRegister ? 'Create Account' : 'Sign In'}
+            {loading ? 'Loading...' : isForgotPassword ? 'Reset Password' : isRegister ? 'Create Account' : 'Sign In'}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <button
-            onClick={() => { setIsRegister(!isRegister); setError(''); }}
-            style={{ background: 'none', border: 'none', color: 'var(--accent-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'inherit' }}
-            id="toggle-auth-mode"
-          >
-            {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Register"}
-          </button>
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {isForgotPassword ? (
+            <button
+              onClick={() => { setIsForgotPassword(false); setIsRegister(false); setError(''); }}
+              style={{ background: 'none', border: 'none', color: 'var(--accent-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'inherit' }}
+            >
+              Back to Sign In
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => { setIsRegister(!isRegister); setError(''); }}
+                style={{ background: 'none', border: 'none', color: 'var(--accent-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'inherit' }}
+                id="toggle-auth-mode"
+              >
+                {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Register"}
+              </button>
+              
+              {!isRegister && (
+                <button
+                  onClick={() => { setIsForgotPassword(true); setError(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'inherit' }}
+                  id="forgot-password"
+                >
+                  Forgot your password?
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

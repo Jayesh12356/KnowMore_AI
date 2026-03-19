@@ -55,4 +55,31 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
+// POST /api/v1/auth/reset-password
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and new password required' });
+
+    const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.status === 'banned') {
+      return res.status(403).json({ error: 'Account has been banned. Contact support.' });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, user.id]);
+
+    // Clear any previous session revocation
+    await redis.del(`revoked:${user.id}`);
+
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ user: { id: user.id, email: user.email, display_name: user.display_name }, token });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

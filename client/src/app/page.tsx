@@ -27,6 +27,7 @@ export default function HomePage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [providers, setProviders] = useState<any[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>('');
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
@@ -44,11 +45,9 @@ export default function HomePage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const router = useRouter();
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    if (!token) { router.push('/login'); return; }
-    if (userData) setUser(JSON.parse(userData));
+  const loadData = useCallback(() => {
+    setLoading(true);
+    setFetchError(null);
 
     Promise.all([
       api.getTopics(),
@@ -59,7 +58,6 @@ export default function HomePage() {
         setTopics(topicData.topics);
         setProgress(progressData);
         setProviders(providerData.providers);
-        // Use saved provider if it's allowed, otherwise pick first allowed or default
         const saved = localStorage.getItem('llm_provider');
         const allowedProviders = providerData.providers.filter((p: any) => p.allowed);
         const savedIsAllowed = saved && allowedProviders.some((p: any) => p.name === saved);
@@ -67,9 +65,22 @@ export default function HomePage() {
         setActiveProvider(chosen);
         localStorage.setItem('llm_provider', chosen);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setFetchError(err.message?.includes('abort') || err.name === 'AbortError'
+          ? 'Server is waking up — this may take up to 30 seconds on free hosting.'
+          : 'Could not connect to server. It may be starting up.');
+      })
       .finally(() => setLoading(false));
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    if (!token) { router.push('/login'); return; }
+    if (userData) setUser(JSON.parse(userData));
+    loadData();
+  }, [router, loadData]);
 
   const getTopicStatus = (topicId: number): string => {
     if (!progress) return 'new';
@@ -289,7 +300,17 @@ export default function HomePage() {
       )}
 
       {loading ? (
-        <div className="loading-center"><div className="spinner" /></div>
+        <div className="loading-center">
+          <div className="spinner" />
+          {fetchError === null && <p style={{ color: 'var(--text-muted)', marginTop: '1rem', fontSize: '0.85rem' }}>Connecting to server...</p>}
+        </div>
+      ) : fetchError ? (
+        <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+          <p style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>⚠️</p>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>Connection Issue</p>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>{fetchError}</p>
+          <button className="btn btn-primary" onClick={loadData}>🔄 Retry</button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>

@@ -5,7 +5,7 @@ function getToken(): string | null {
   return localStorage.getItem('token');
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function apiFetch<T>(path: string, options: RequestInit = {}, retries = 2): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -13,24 +13,49 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  // 30s timeout to prevent infinite loading on cold starts
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-    // Auto-logout on auth failures (banned, revoked, deleted)
-    if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      const errorMsg = encodeURIComponent(body.error || 'Session expired. Please login again.');
-      window.location.href = `/login?error=${errorMsg}`;
-      throw new Error(body.error || 'Session expired');
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+
+      // Auto-logout on auth failures (banned, revoked, deleted)
+      if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        const errorMsg = encodeURIComponent(body.error || 'Session expired. Please login again.');
+        window.location.href = `/login?error=${errorMsg}`;
+        throw new Error(body.error || 'Session expired');
+      }
+
+      // Retry on server errors (502, 503, 504 — common during Render cold start)
+      if (retries > 0 && res.status >= 500) {
+        await new Promise(r => setTimeout(r, 2000));
+        return apiFetch<T>(path, options, retries - 1);
+      }
+
+      throw new Error(body.error || `API error ${res.status}`);
     }
 
-    throw new Error(body.error || `API error ${res.status}`);
+    return res.json();
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    // Retry on network errors / timeouts (backend waking up)
+    if (retries > 0 && (err.name === 'AbortError' || err.name === 'TypeError' || err.message?.includes('fetch'))) {
+      await new Promise(r => setTimeout(r, 2000));
+      return apiFetch<T>(path, options, retries - 1);
+    }
+    throw err;
   }
-
-  return res.json();
 }
 
 export const api = {
@@ -42,6 +67,11 @@ export const api = {
 
   login: (email: string, password: string) =>
     apiFetch<{ user: any; token: string }>('/auth/login', {
+      method: 'POST', body: JSON.stringify({ email, password }),
+    }),
+
+  resetPassword: (email: string, password: string) =>
+    apiFetch<{ user: any; token: string }>('/auth/reset-password', {
       method: 'POST', body: JSON.stringify({ email, password }),
     }),
 

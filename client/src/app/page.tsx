@@ -43,6 +43,7 @@ export default function HomePage() {
     }
   }, [showUserMenu]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const router = useRouter();
 
   const loadData = useCallback(() => {
@@ -99,7 +100,12 @@ export default function HomePage() {
     return getTopicStatus(t.id) === statusFilter;
   });
 
-  const categories = [...new Set(filtered.map((t) => t.category || 'Uncategorized'))];
+  const allCategories = ['All Categories', ...new Set(topics.map((t) => t.category || 'Uncategorized'))];
+  const categories = allCategories.slice(1);
+
+  const filteredByCategory = filtered.filter(
+    (t) => selectedCategory === 'All Categories' || (t.category || 'Uncategorized') === selectedCategory
+  );
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -260,14 +266,24 @@ export default function HomePage() {
         </p>
       </div>
 
-      <input
-        className="input"
-        placeholder="Search topics or categories..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ marginBottom: '1rem' }}
-        id="topic-search"
-      />
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+        <input
+          className="input"
+          placeholder="Search topics or categories..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flexGrow: 1 }}
+          id="topic-search"
+        />
+        <select
+          className="input"
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          style={{ minWidth: '150px' }}
+        >
+          {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
 
       {/* ═══ STATUS FILTERS ═══ */}
       {!loading && topics.length > 0 && (
@@ -325,7 +341,7 @@ export default function HomePage() {
           )}
         </div>
       ) : (
-        categories.map((cat) => (
+        (selectedCategory === 'All Categories' ? categories : [selectedCategory]).map((cat) => (
           <div key={cat} style={{ marginBottom: '2rem' }}>
             <h2 style={{ marginBottom: '1rem', color: 'var(--accent-secondary)' }}>{cat}</h2>
             <div className="topic-grid">
